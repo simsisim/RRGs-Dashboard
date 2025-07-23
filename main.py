@@ -30,7 +30,7 @@ def main():
         window = st.sidebar.slider("Window Size - 1d", 10, 50, 20, 1)
         tail_length = st.sidebar.slider("Tail Length - 1d", 1, 12, 5, 1)
         st.sidebar.header("Weekly Parameters")
-        window_1wk = st.sidebar.slider("Window Size - 1wk", 5, 20, 10, 1)
+        window_1wk = st.sidebar.slider("Window Size - 1wk", 5, 20, 1pytho0, 1)
         tail_length_1wk = st.sidebar.slider("Tail Length - 1wk", 1, 20, 5, 1)
     else:
         ma_short = st.sidebar.slider("Short MA", 5, 55, 20, 5)
