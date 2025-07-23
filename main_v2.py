@@ -1,19 +1,11 @@
 import yfinance as yf
-
 import pandas as pd
-
 import numpy as np
-
 from typing import List, Literal, Optional
-
 from datetime import datetime, timedelta, date as dateType
-
 from plotly import graph_objects as go
-
 import plotly.express as px
-
 from itertools import cycle
-
 from data_reader import DataReader
 
 SPDRS = [
@@ -29,7 +21,7 @@ class RelativeRotationData:
         tail_length: int,
         study: Literal["price", "volume", "volatility"] = "price",
         date: Optional[dateType] = None,
-        window: Optional[int] = 20,
+        window: Optional[int] = 50,
         ma_short: Optional[int] = None,
         ma_long: Optional[int] = None,
         chart_type: Literal["rrg", "moving_average"] = "rrg",
@@ -49,6 +41,7 @@ class RelativeRotationData:
         self.ma_short = ma_short
         self.ma_long = ma_long
         self.frequency = frequency
+
         self.start_date = None
         self.end_date = None
         self.symbols_data = None
@@ -116,18 +109,18 @@ class RelativeRotationData:
         rrg_data = pd.DataFrame()
         for symbol in self.symbols:
             if symbol != self.benchmark:
-                #if self.frequency == "daily":
-                rs_ratio, rs_momentum = self.calculate_rrg_components_tradingview(
+                if self.frequency == "daily":
+                    rs_ratio, rs_momentum = self.calculate_rrg_components_tradingview(
                         self.symbols_data[symbol],
                         self.benchmark_data[self.benchmark],
                         window=self.window or 20
-                )
-                #else:
-                #    rs_ratio, rs_momentum = self.calculate_rrg_components(
-                #        self.symbols_data[symbol],
-                #        self.benchmark_data[self.benchmark],
-                #        window=self.window or 20
-                #    )
+                    )
+                else:
+                    rs_ratio, rs_momentum = self.calculate_rrg_components(
+                        self.symbols_data[symbol],
+                        self.benchmark_data[self.benchmark],
+                        window=self.window or 20
+                    )
                 rrg_data[f'{symbol}_RS_Ratio'] = rs_ratio
                 rrg_data[f'{symbol}_RS_Momentum'] = rs_momentum
         self.rrg_data = rrg_data
@@ -155,106 +148,73 @@ class RelativeRotationData:
         if self.chart_type == "rrg":  # RRG: Momentum
             latest_dates = self.rrg_data.index[-self.tail_length:]
             latest_data = self.rrg_data.loc[latest_dates]
-
+    
             ratio_cols = [f'{symbol}_RS_Ratio' for symbol in self.symbols if symbol != self.benchmark]
             momentum_cols = [f'{symbol}_RS_Momentum' for symbol in self.symbols if symbol != self.benchmark]
-
-            # --- FIXED AXES AND QUADRANTS (like StockCharts) ---
-            x_range = [88, 112]
-            y_range = [90, 112]
+    
+            x_min = latest_data[ratio_cols].min().min()
+            x_max = latest_data[ratio_cols].max().max()
+            y_min = latest_data[momentum_cols].min().min()
+            y_max = latest_data[momentum_cols].max().max()
+    
+            # Add dynamic padding
+            x_padding = (x_max - x_min) * 0.1 if x_max > x_min else 5
+            y_padding = (y_max - y_min) * 0.1 if y_max > y_min else 5
+    
+            x_range = [x_min - x_padding, x_max + x_padding]
+            y_range = [y_min - y_padding, y_max + y_padding]
+    
             fig.update_xaxes(range=x_range)
             fig.update_yaxes(range=y_range)
-
+    
             center_x = 100
             center_y = 100
-            x0, x1 = x_range
-            y0, y1 = y_range
-
+    
             quadrant_colors = [
                 'rgba(0, 128, 0, 0.4)',     # Leading (Green)
                 'rgba(255, 255, 0, 0.4)',   # Weakening (Yellow)
                 'rgba(255, 0, 0, 0.4)',     # Lagging (Red)
                 'rgba(0, 0, 255, 0.4)'      # Improving (Blue)
             ]
-            # Draw quadrants with fixed boundaries
-            fig.add_shape(type="rect", x0=center_x, y0=center_y, x1=x1, y1=y1, fillcolor=quadrant_colors[0], line_color="Gray", opacity=0.6)
-            fig.add_shape(type="rect", x0=x0, y0=center_y, x1=center_x, y1=y1, fillcolor=quadrant_colors[3], line_color="Gray", opacity=0.6)
-            fig.add_shape(type="rect", x0=x0, y0=y0, x1=center_x, y1=center_y, fillcolor=quadrant_colors[2], line_color="Gray", opacity=0.6)
-            fig.add_shape(type="rect", x0=center_x, y0=y0, x1=x1, y1=center_y, fillcolor=quadrant_colors[1], line_color="Gray", opacity=0.6)
-
-            fig.add_shape(type="line", x0=center_x, y0=y0, x1=center_x, y1=y1, line=dict(color="Gray", width=1, dash="dot"))
-            fig.add_shape(type="line", x0=x0, y0=center_y, x1=x1, y1=center_y, line=dict(color="Gray", width=1, dash="dot"))
-
-            fig.add_annotation(x=x1-2, y=y1-2, text="Leading", showarrow=False, font=dict(size=14), align="center")
-            fig.add_annotation(x=x0+2, y=y1-2, text="Improving", showarrow=False, font=dict(size=14), align="center")
-            fig.add_annotation(x=x0+2, y=y0+2, text="Lagging", showarrow=False, font=dict(size=14), align="center")
-            fig.add_annotation(x=x1-2, y=y0+2, text="Weakening", showarrow=False, font=dict(size=14), align="center")
-
+            # Draw quadrants based on dynamic range
+            fig.add_shape(type="rect", x0=center_x, y0=center_y, x1=x_range[1], y1=y_range[1], fillcolor=quadrant_colors[0], line_color="Gray", opacity=0.6)
+            fig.add_shape(type="rect", x0=x_range[0], y0=center_y, x1=center_x, y1=y_range[1], fillcolor=quadrant_colors[3], line_color="Gray", opacity=0.6)
+            fig.add_shape(type="rect", x0=x_range[0], y0=y_range[0], x1=center_x, y1=center_y, fillcolor=quadrant_colors[2], line_color="Gray", opacity=0.6)
+            fig.add_shape(type="rect", x0=center_x, y0=y_range[0], x1=x_range[1], y1=center_y, fillcolor=quadrant_colors[1], line_color="Gray", opacity=0.6)
+    
+            fig.add_shape(type="line", x0=center_x, y0=y_range[0], x1=center_x, y1=y_range[1], line=dict(color="Gray", width=1, dash="dot"))
+            fig.add_shape(type="line", x0=x_range[0], y0=center_y, x1=x_range[1], y1=center_y, line=dict(color="Gray", width=1, dash="dot"))
+    
+            fig.add_annotation(x=x_range[1]-2, y=y_range[1]-2, text="Leading", showarrow=False, font=dict(size=14), align="center")
+            fig.add_annotation(x=x_range[0]+2, y=y_range[1]-2, text="Improving", showarrow=False, font=dict(size=14), align="center")
+            fig.add_annotation(x=x_range[0]+2, y=y_range[0]+2, text="Lagging", showarrow=False, font=dict(size=14), align="center")
+            fig.add_annotation(x=x_range[1]-2, y=y_range[0]+2, text="Weakening", showarrow=False, font=dict(size=14), align="center")
+    
             # Plot the trails for each symbol
-            # colors = cycle(px.colors.qualitative.Dark24)
-            # for symbol in self.symbols:
-            #     if symbol != self.benchmark:
-            #         color = next(colors)
-            #         xs = latest_data[f'{symbol}_RS_Ratio']
-            #         ys = latest_data[f'{symbol}_RS_Momentum']
-            #         fig.add_trace(go.Scatter(
-            #             x=xs,
-            #             y=ys,
-            #             mode='lines+markers',
-            #             name=symbol,
-            #             line=dict(color=color),
-            #             marker=dict(size=[8] * (len(xs) - 1) + [12], color=color, symbol="circle"),
-            #             showlegend=True
-            #         ))
-
-            # fig.update_layout(
-            #     title="Relative Rotation Graph (Momentum)",
-            #     xaxis_title="RS-Ratio",
-            #     yaxis_title="RS-Momentum",
-            #     width=500, height=600,
-            #     template="plotly_white"
-            # )
-
-        colors = cycle(px.colors.qualitative.Dark24)
-        for symbol in self.symbols:
-            if symbol != self.benchmark:
-                color = next(colors)
-                xs = latest_data[f'{symbol}_RS_Ratio']
-                ys = latest_data[f'{symbol}_RS_Momentum']
-        
-                # Plot the trail line with thicker width
-                fig.add_trace(go.Scatter(
-                    x=xs,
-                    y=ys,
-                    mode='lines+markers',
-                    name=symbol,
-                    line=dict(color=color, width=3),  # Thicker line
-                    marker=dict(
-                        color=color,
-                        size=8,
-                        symbol="circle"
-                    ),
-                    showlegend=True
-                ))
-        
-                # Draw arrow for the latest movement direction (between last two points)
-                if len(xs) >= 2:
-                    fig.add_annotation(
-                        x=xs.iloc[-1],
-                        y=ys.iloc[-1],
-                        ax=xs.iloc[-2],
-                        ay=ys.iloc[-2],
-                        xref="x", yref="y",
-                        axref="x", ayref="y",
-                        showarrow=True,
-                        arrowhead=3,
-                        arrowwidth=2,
-                        arrowsize=1.5,
-                        arrowcolor=color,
-                        opacity=1,
-                        text=""
-                    )
-
-
-        # (If you have code for moving averages, you may similarly set fixed axes)
+            colors = cycle(px.colors.qualitative.Dark24)
+            for symbol in self.symbols:
+                if symbol != self.benchmark:
+                    color = next(colors)
+                    xs = latest_data[f'{symbol}_RS_Ratio']
+                    ys = latest_data[f'{symbol}_RS_Momentum']
+                    fig.add_trace(go.Scatter(
+                        x=xs,
+                        y=ys,
+                        mode='lines+markers',
+                        name=symbol,
+                        line=dict(color=color),
+                        marker=dict(size=[8] * (len(xs) - 1) + [12], color=color, symbol="circle"),
+                        showlegend=True
+                    ))
+    
+            fig.update_layout(
+                title="Relative Rotation Graph (Momentum)",
+                xaxis_title="RS-Ratio",
+                yaxis_title="RS-Momentum",
+                width=800, height=800,
+                template="plotly_white"
+            )
+    
+        # (If you have code for moving averages, you may similarly add dynamic scaling)
         return fig
+
