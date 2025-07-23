@@ -59,6 +59,7 @@ def main():
             st.write(f"**Window:** {window}, **Tail Length:** {tail_length}")
         else:
             st.write(f"**Short MA:** {ma_short}, **Long MA:** {ma_long}, **Tail Length:** {tail_length}")
+            
 
         target_date = date.today()
         chart_type = "rrg" if calculation_method == "RRG: Momentum" else "moving_average"
