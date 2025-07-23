@@ -254,7 +254,13 @@ class RelativeRotationData:
                         opacity=1,
                         text=""
                     )
-
+            fig.update_layout(
+                title="Relative Rotation Graph (Momentum)",
+                xaxis_title="RS-Ratio",
+                yaxis_title="RS-Momentum",
+                width=500, height=600,
+                template="plotly_white"
+            )
 
         # (If you have code for moving averages, you may similarly set fixed axes)
         return fig
